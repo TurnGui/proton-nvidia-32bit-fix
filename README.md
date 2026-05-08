@@ -251,7 +251,3 @@ Proton fails. Install it via [ProtonUp-Qt](https://flathub.org/apps/net.davidote
 and select it in the game's Properties → Compatibility tab.
 
 ---
-
-## License
-
-Public domain. Read the script before running it. No warranty.
