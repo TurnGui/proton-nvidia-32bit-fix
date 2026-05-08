@@ -1,0 +1,9 @@
+.vscode/
+.idea/
+.DS_Store
+*~
+*.swp
+
+NVIDIA-Linux-*.run
+nvidia-32bit-fix-*/
+*.log
