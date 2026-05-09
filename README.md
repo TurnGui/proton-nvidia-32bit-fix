@@ -147,23 +147,44 @@ to match.
 If for any reason you want to undo what this script did:
 
 ```bash
-# Remove the 32-bit libs (paths recorded by the script in step 3)
-# This list matches what the .run's 32/ folder contains:
+# Remove only the NVIDIA-specific 32-bit libraries.
+# (Don't remove generic GL/EGL/GLX libraries — those belong to Mesa
+# and the system uses them. Removing them will break your Steam client
+# and possibly other apps.)
 sudo rm -f /usr/lib/i386-linux-gnu/libGLX_nvidia.so* \
            /usr/lib/i386-linux-gnu/libEGL_nvidia.so* \
-           /usr/lib/i386-linux-gnu/libGLESv*nvidia.so* \
+           /usr/lib/i386-linux-gnu/libGLESv*_nvidia.so* \
            /usr/lib/i386-linux-gnu/libnvidia-*.so* \
-           /usr/lib/i386-linux-gnu/libcuda.so*
+           /usr/lib/i386-linux-gnu/libcuda.so* \
+           /usr/lib/i386-linux-gnu/libnvcuvid.so* \
+           /usr/lib/i386-linux-gnu/libvdpau_nvidia.so*
 
-# Remove the 32-bit Vulkan ICD
+# Remove the 32-bit Vulkan ICD (and any backups the script made)
 sudo rm -f /usr/share/vulkan/icd.d/nvidia_icd.i686.json
+sudo rm -f /usr/share/vulkan/icd.d/nvidia_icd.i686.json.bak.*
 
-# Refresh
+# Refresh the linker cache
 sudo ldconfig
 ```
 
-This puts you back exactly where you were before — back to `llvmpipe` for
-32-bit games, but not damaged.
+This puts you back exactly where you were before — 32-bit games will fall
+back to `llvmpipe` (software rendering), but the system itself is intact.
+
+> ⚠️ **Do NOT extend the `rm` list with files like `libGL.so*`, `libEGL.so*`,
+> `libGLX.so*`, `libGLESv*.so*` (without `_nvidia`), `libGLdispatch.so*`,
+> `libOpenGL.so*`, or `libOpenCL.so*`. Those are generic libraries provided
+> by Mesa/glvnd that the system needs for Steam itself, your desktop, and
+> non-NVIDIA apps. The script copies NVIDIA's versions on top of them, but
+> the originals must remain installed via apt — removing them breaks
+> Steam ("missing 32-bit libraries: libGL.so.1") and other apps.**
+>
+> If you accidentally removed those, you can fix it by reinstalling the
+> Mesa packages:
+>
+> ```bash
+> sudo apt install --reinstall libgl1:i386 libegl1:i386 libgles2:i386 \
+>                              libglx0:i386 libglvnd0:i386 libopengl0:i386
+> ```
 
 ---
 
@@ -251,3 +272,7 @@ Proton fails. Install it via [ProtonUp-Qt](https://flathub.org/apps/net.davidote
 and select it in the game's Properties → Compatibility tab.
 
 ---
+
+## License
+
+Public domain. Read the script before running it. No warranty.
