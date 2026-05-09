@@ -187,41 +187,92 @@ step "Step 2/4: Make sure protontricks is available"
 # protontricks-flatpak is the recommended way (handles new Steam appinfo
 # format that the apt version of protontricks chokes on). We always go
 # through Flatpak here for that reason.
+#
+# Flatpak has two install scopes:
+#   - --user: installed under ~/.local/share/flatpak, no sudo needed
+#   - --system: installed under /var/lib/flatpak, needs sudo, but visible
+#     to all users on the machine
+#
+# Some Mint/Ubuntu setups have flathub configured at system level only,
+# in which case --user installs fail. We detect existing installations in
+# either scope, and for new installs we ask the user which scope to use.
+
 PROTONTRICKS_CMD=""
+PROTONTRICKS_SCOPE=""  # "user" or "system" — used for matching overrides
 
-if command -v flatpak >/dev/null 2>&1; then
-    if flatpak list --app --columns=application 2>/dev/null | grep -q '^com.github.Matoking.protontricks$'; then
-        ok "protontricks (Flatpak) is already installed."
-        PROTONTRICKS_CMD="flatpak run --env=STEAM_DIR=${STEAM_DIR} com.github.Matoking.protontricks"
-    else
-        info "protontricks not installed via Flatpak. We'll install it now."
-        info "(The apt version of protontricks doesn't work with current Steam"
-        info " versions — Flatpak is the only reliable option.)"
-
-        if [[ $ASSUME_YES -eq 0 ]]; then
-            read -rp "Install protontricks via Flatpak now? [Y/n] " ans
-            case "${ans,,}" in
-                n|no) err "Aborted by user."; exit 1 ;;
-                *) : ;;
-            esac
-        fi
-
-        run flatpak install --user -y flathub com.github.Matoking.protontricks
-
-        # Grant access to Steam directories so protontricks can see your library.
-        # Without these, it errors with "No Steam installation was selected".
-        run flatpak override --user --filesystem="$HOME/.steam" com.github.Matoking.protontricks
-        run flatpak override --user --filesystem="$HOME/.local/share/Steam" com.github.Matoking.protontricks
-
-        PROTONTRICKS_CMD="flatpak run --env=STEAM_DIR=${STEAM_DIR} com.github.Matoking.protontricks"
-        ok "protontricks installed."
-    fi
-else
+if ! command -v flatpak >/dev/null 2>&1; then
     err "Flatpak is not installed. Install it first:"
     err "    sudo apt install flatpak"
     err "Then re-run this script."
     exit 1
 fi
+
+# Check both scopes for an existing install.
+if flatpak list --user --app --columns=application 2>/dev/null \
+        | grep -q '^com.github.Matoking.protontricks$'; then
+    ok "protontricks (Flatpak, user install) is already installed."
+    PROTONTRICKS_SCOPE="user"
+elif flatpak list --system --app --columns=application 2>/dev/null \
+        | grep -q '^com.github.Matoking.protontricks$'; then
+    ok "protontricks (Flatpak, system install) is already installed."
+    PROTONTRICKS_SCOPE="system"
+else
+    info "protontricks not installed via Flatpak. We'll install it now."
+    info "(The apt version of protontricks doesn't work with current Steam"
+    info " versions — Flatpak is the only reliable option.)"
+    echo
+    echo "Flatpak install scope:"
+    echo "  1. User (recommended) — installs under your home directory, no sudo"
+    echo "  2. System — installs system-wide, requires sudo password"
+    echo
+    info "If you don't know which to pick, choose 1. If user install fails"
+    info "(some Mint setups only have Flathub configured system-wide), come"
+    info "back and pick 2."
+    echo
+
+    if [[ $ASSUME_YES -eq 1 ]]; then
+        scope_choice=1
+    else
+        read -rp "Choice [1]: " scope_choice
+        scope_choice="${scope_choice:-1}"
+    fi
+
+    case "$scope_choice" in
+        1)
+            PROTONTRICKS_SCOPE="user"
+            run flatpak install --user -y flathub com.github.Matoking.protontricks
+            ;;
+        2)
+            PROTONTRICKS_SCOPE="system"
+            # --system needs sudo; flatpak handles the prompt itself.
+            run flatpak install --system -y flathub com.github.Matoking.protontricks
+            ;;
+        *)
+            err "Invalid choice."
+            exit 1
+            ;;
+    esac
+
+    ok "protontricks installed (${PROTONTRICKS_SCOPE} scope)."
+fi
+
+# Apply filesystem overrides at the same scope where protontricks lives.
+# Without these, protontricks errors with "No Steam installation was selected"
+# because the Flatpak sandbox can't see Steam's directories.
+#
+# Note: --override on user scope writes under ~/.local/share/flatpak;
+# system scope writes under /etc/flatpak and needs sudo. Re-applying overrides
+# every run is harmless (they're idempotent).
+if [[ "$PROTONTRICKS_SCOPE" == "system" ]]; then
+    run sudo flatpak override --system --filesystem="$HOME/.steam" com.github.Matoking.protontricks
+    run sudo flatpak override --system --filesystem="$HOME/.local/share/Steam" com.github.Matoking.protontricks
+else
+    run flatpak override --user --filesystem="$HOME/.steam" com.github.Matoking.protontricks
+    run flatpak override --user --filesystem="$HOME/.local/share/Steam" com.github.Matoking.protontricks
+fi
+
+PROTONTRICKS_CMD="flatpak run --env=STEAM_DIR=${STEAM_DIR} com.github.Matoking.protontricks"
+
 
 step "Step 3/4: Find the game you want to fix"
 
