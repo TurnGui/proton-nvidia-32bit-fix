@@ -1,6 +1,6 @@
 # Linux Steam fixes for older Windows games via Proton
 
-This repository contains two scripts to solve the most common problems when running older 32-bit Windows games (e.g., Shogun 2, OG Skyrim, Half-Life 2, Fallout 3/NV, Dragon Age Origins, GTA IV) through Proton on modern Ubunto based systems.
+This repository contains two scripts to solve the most common problems when running older 32-bit Windows games (e.g., Shogun 2, OG Skyrim, Half-Life 2, Fallout 3/NV, Dragon Age Origins, GTA IV) through Proton on modern Ubuntu based systems.
 
 If you prefer I made a video tutorial using both of these scripts here:  
 [YouTube: Fix Shogun 2 & Other 32-bit Steam Games on Linux Mint NVIDIA (llvmpipe Fix)](https://www.youtube.com/watch?v=5TS-7SwusPY)
