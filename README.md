@@ -1,274 +1,129 @@
 # Linux Steam fixes for older Windows games via Proton
 
-Two scripts that fix the most common reasons older 32-bit Windows games
-(Total War: Shogun 2, Skyrim Original, Half-Life 2, Fallout 3/NV, Dragon
-Age Origins, GTA IV, etc.) crash or refuse to launch on modern Linux setups
-via Proton:
+This repository contains two scripts to solve the most common problems when running older 32-bit Windows games (e.g., Shogun 2, OG Skyrim, Half-Life 2, Fallout 3/NV, Dragon Age Origins, GTA IV) through Proton on modern Ubunto based systems.
 
-1. **`nvidia-32bit-fix.sh`** — fixes NVIDIA GPU detection for 32-bit games
-   on Ubuntu/Mint (driver 550+). Most likely the fix you need if you're on
-   an RTX 30/40/50-series card and your game black-screens or hits
-   `llvmpipe` software rendering.
+If you prefer I made a video tutorial using both of these scripts here:  
+[YouTube: Fix Shogun 2 & Other 32-bit Steam Games on Linux Mint NVIDIA (llvmpipe Fix)](https://www.youtube.com/watch?v=5TS-7SwusPY)
 
-2. **`proton-game-fix.sh`** — installs the Windows runtime libraries
-   (Visual C++ Redistributables, .NET, etc.) that older games need, into
-   the specific game's Proton prefix. Most likely the fix you need if your
-   game crashes at the launcher or hangs on startup, even though the GPU
-   itself is fine.
+### Included scripts:
 
-If you're not sure which you need, run them in that order. Each one is
-safe to run on its own and they don't interfere with each other.
+1. **`nvidia-32bit-fix.sh`** — Fixes NVIDIA GPU detection for 32-bit games on Ubuntu/Mint with driver 550+, especially on RTX 30/40/50 series. Use this if your game shows a black screen or defaults to `llvmpipe` (software rendering).
+2. **`proton-game-fix.sh`** — Installs missing Windows runtime libraries (Visual C++ Redistributables, .NET, etc.) into a specific game’s Proton prefix. Use this if your game crashes at the launcher or hangs at startup, but your GPU is detected correctly.
+
+If you’re not sure which problem you have, try them in order. They’re independent; running one won’t interfere with the other.
 
 ---
 
-## Script 1: `nvidia-32bit-fix.sh`
+### Script 1: `nvidia-32bit-fix.sh`
 
-Installs NVIDIA 32-bit libraries on Ubuntu 24.04 / Linux Mint 22.x when
-they're missing from apt — fixing 32-bit Windows games (run via Proton)
-that crash, black-screen, or fall back to software rendering on modern
-NVIDIA GPUs.
+**Who needs this:**  
+- Ubuntu 24.04 (or Mint 22.x/Pop!_OS 24.04)  
+- RTX 30/40/50-series with NVIDIA drivers 550+  
+- 32-bit Windows games via Proton crash, black screen, or run unusably slow  
+- DXVK/D3D11 logs show `"Device name: llvmpipe"` instead of NVIDIA
+---
 
-### Who is this for?
-
-You, if all of the following are true:
-
-- You're on **Ubuntu 24.04 (Noble)** or a derivative (Linux Mint 22.x, Pop!_OS 24.04, etc.).
-- You have a **modern NVIDIA GPU** (RTX 30/40/50-series) using **driver 550 or newer**.
-- A **32-bit Windows game** running through **Proton** (Steam Play) crashes,
-  black-screens, or runs at 5 FPS. Common culprits:
-  Total War: Shogun 2, Empire/Napoleon Total War, Skyrim Original (not SE),
-  Half-Life 2, Fallout 3/NV, Dragon Age Origins, GTA IV, etc.
-- The game's DXVK log shows `Device name: llvmpipe (...)` instead of your
-  NVIDIA GPU name. (See "How to verify the diagnosis" below.)
-
-If you're on **Arch, Fedora, or openSUSE**, you don't need this script —
-those distros package NVIDIA's 32-bit libs correctly. Install
-`lib32-nvidia-utils` (Arch) or `xorg-x11-drv-nvidia-libs.i686` (Fedora) instead.
-
-### What's the actual bug?
-
-Starting with NVIDIA driver 550, **Ubuntu stopped packaging the 32-bit half
-of the driver** (`libnvidia-gl-*:i386`). The 64-bit half installs fine, so
-your desktop and 64-bit games work, but **32-bit Vulkan apps can't see the
-GPU**. DXVK (Proton's DirectX-to-Vulkan layer) then falls back to `llvmpipe`,
-which renders in CPU. Most games crash or are unplayable in this state.
-
-NVIDIA still ships the 32-bit libs in its official `.run` installer — they're
-just not in the apt repos. This script extracts them from the `.run` and
-installs them by hand, without touching anything else.
-
-### How to verify the diagnosis (before running anything)
-
-For Total War: Shogun 2:
-
-```bash
-grep "Device name" ~/.steam/debian-installation/steamapps/common/"Total War SHOGUN 2"/shogun2_d3d11.log
-```
-
-For other games, look for a `dxvk*.log` or `*_d3d11.log` file inside the
-game's install folder, or run the game with `DXVK_LOG_LEVEL=info` and check
-`~/.cache/dxvk/` or stdout.
-
-If the device name is `llvmpipe`, this script is the right fix.
-If it's already your NVIDIA GPU, the problem is somewhere else.
-
-### Usage
-
-```bash
-# Read the script first. Always.
-less nvidia-32bit-fix.sh
-
-# Make it executable (downloaded scripts come without this bit set).
-chmod +x nvidia-32bit-fix.sh
-
-# Optional: see exactly what it would do, without doing anything.
-./nvidia-32bit-fix.sh --dry-run
-
-# Run for real.
-./nvidia-32bit-fix.sh
-```
-
-The script will:
-
-1. Check you have an NVIDIA driver, i386 enabled, and that this fix is
-   actually needed.
-2. Show you a plan of every action it'll take.
-3. Ask for confirmation before doing anything.
-4. Download the matching `.run` installer from `us.download.nvidia.com`.
-5. Extract only the 32-bit libs (no driver install).
-6. Copy them to `/usr/lib/i386-linux-gnu/` and create the expected symlinks.
-7. Register a 32-bit Vulkan ICD at `/usr/share/vulkan/icd.d/nvidia_icd.i686.json`.
-8. Run `ldconfig` to refresh the linker cache.
-
-The whole thing takes 1–2 minutes (most of it is the 400 MB download).
-
-### What the script wont
-
-- It won't replace your installed driver.
-- It won't touch kernel modules or X config.
-- It won't modify any 64-bit libraries.
-- It won't touch anything outside `/usr/lib/i386-linux-gnu/` and
-  `/usr/share/vulkan/icd.d/`.
-- It won't run as root — it calls `sudo` itself, only for the specific
-  commands that need root.
-- It won't continue past any failed step. If something looks wrong, it stops.
-
-If the existing `/usr/share/vulkan/icd.d/nvidia_icd.i686.json` is present,
-it gets backed up to `nvidia_icd.i686.json.bak.<timestamp>` before being
-overwritten.
-
-### After running it
-
-Re-launch your game. Check the d3d11/dxvk log again:
-
-```bash
-grep "Device name" ~/.steam/debian-installation/steamapps/common/"Total War SHOGUN 2"/shogun2_d3d11.log
-```
-
-It should now report your NVIDIA GPU.
-
-If the device name is now your NVIDIA GPU but the game **still** crashes or
-won't launch, the 32-bit GPU problem is fixed and you're hitting a separate
-issue: **the game is missing Windows runtime libraries** (Visual C++
-Redistributables, .NET Framework, DirectX runtimes, etc.) that real Windows
-ships with but that Proton's "fake Windows" does not.
-
-That's exactly what Script 2 below is for.
-
-### When the NVIDIA driver updates
-
-Re-run the script. The 64-bit libs in apt will be at the new version, but
-the 32-bit libs you installed manually are still at the old version, and
-will likely break. Re-running fetches the new `.run` and updates everything
-to match.
-
-### Reverting
-
-If for any reason you want to undo what this script did:
-
-```bash
-# Remove only the NVIDIA-specific 32-bit libraries.
-# (Don't remove generic GL/EGL/GLX libraries — those belong to Mesa
-# and the system uses them. Removing them will break your Steam client
-# and possibly other apps.)
-sudo rm -f /usr/lib/i386-linux-gnu/libGLX_nvidia.so* \
-           /usr/lib/i386-linux-gnu/libEGL_nvidia.so* \
-           /usr/lib/i386-linux-gnu/libGLESv*_nvidia.so* \
-           /usr/lib/i386-linux-gnu/libnvidia-*.so* \
-           /usr/lib/i386-linux-gnu/libcuda.so* \
-           /usr/lib/i386-linux-gnu/libnvcuvid.so* \
-           /usr/lib/i386-linux-gnu/libvdpau_nvidia.so*
-
-# Remove the 32-bit Vulkan ICD (and any backups the script made)
-sudo rm -f /usr/share/vulkan/icd.d/nvidia_icd.i686.json
-sudo rm -f /usr/share/vulkan/icd.d/nvidia_icd.i686.json.bak.*
-
-# Refresh the linker cache
-sudo ldconfig
-```
-
-This puts you back exactly where you were before — 32-bit games will fall
-back to `llvmpipe` (software rendering), but the system itself is intact.
-
->  **Do NOT extend the `rm` list with files like `libGL.so*`, `libEGL.so*`,
-> `libGLX.so*`, `libGLESv*.so*` (without `_nvidia`), `libGLdispatch.so*`,
-> `libOpenGL.so*`, or `libOpenCL.so*`. Those are generic libraries provided
-> by Mesa/glvnd that the system needs for Steam itself, your desktop, and
-> non-NVIDIA apps. The script copies NVIDIA's versions on top of them, but
-> the originals must remain installed via apt — removing them breaks
-> Steam ("missing 32-bit libraries: libGL.so.1") and other apps.**
->
-> If you accidentally removed those, you can fix it by reinstalling the
-> Mesa packages:
->
-> ```bash
-> sudo apt install --reinstall libgl1:i386 libegl1:i386 libgles2:i386 \
->                              libglx0:i386 libglvnd0:i386 libopengl0:i386
-> ```
+On **Arch**, **Fedora**, and **openSUSE**, install your distro's 32-bit NVIDIA libraries (`lib32-nvidia-utils` or equivalent) instead; or so i heard, i cant really test that myself but this script isnt for you im sorry :(
 
 ---
 
-## Script 2: `proton-game-fix.sh`
+**What’s going on:**  
+Ubuntu stopped packaging the 32-bit NVIDIA driver libs (`libnvidia-gl-*:i386`) starting with driver 550. The 64-bit side works, but 32-bit Vulkan apps—including many games through Proton can’t find your GPU. They fall back to llvmpipe (which is just the CPU doing slow software rendering).
 
-Installs Windows runtime libraries (Visual C++ Redistributables, .NET
-Framework, DirectX runtimes, etc.) into a specific Steam game's Proton
-prefix using `protontricks`. This is the standard fix for older Windows
-games that crash on launch, fail to start, or hang at the launcher when
-running through Proton on Linux.
+**What this script does:**  
+- Checks your driver/install state and whether the problem applies to your setup.
+- Downloads the right NVIDIA installer and extracts only the 32-bit libs.
+- Installs those to `/usr/lib/i386-linux-gnu/`, creates the right symlinks, and registers the 32-bit Vulkan ICD.
+- Asks for confirmation before making changes; stops on any error.
+- Doesn’t touch your kernel modules, driver config, or system-wide 64-bit libraries.
 
-This is the most common fix needed for games on Linux **after** the GPU is
-working correctly. Each Steam game has its own isolated Proton environment
-and needs its own runtimes installed — so this has to be done once per game.
+**How to use:**  
+- Read the script before running (`less nvidia-32bit-fix.sh`)
+- Make it executable: `chmod +x nvidia-32bit-fix.sh`
+- (Optional) Dry-run mode: `./nvidia-32bit-fix.sh --dry-run`
+- Run with `./nvidia-32bit-fix.sh`
+- Takes about 1–2 minutes (most of it downloading the NVIDIA installer).
 
-### Who is this for?
+**After running:**  
+Re-launch your game and check the log again. If “Device name” is now your actual NVIDIA GPU, rendering should work as intended. If it still crashes, you’re likely missing Windows runtime libraries—see Script 2.
 
-You, if:
+**Driver upgrades:**  
+Re-run this script after upgrading NVIDIA drivers. The 64-bit/apt and 32-bit/manual pieces need to match.
 
-- You're running a 32-bit (or older 64-bit) Windows game through Proton.
-- The game crashes at launch, fails to start, or hangs at the launcher
-  splash screen.
-- You're confident the GPU isn't the problem (i.e. you don't have an
-  NVIDIA setup that needs Script 1, OR you've already run Script 1 and
-  the game still doesn't work).
+**To undo:**  
+See the script or README “Reverting” section. Only remove the specific NVIDIA 32-bit libs and config added; don’t mess with Mesa libs or you’ll break Steam. If you accidentally remove core Mesa bits, reinstall them with apt as described.
 
-### Usage
+---
+### Script 2: `proton-game-fix.sh`
+
+This script installs required Windows runtime libraries (Visual C++ Redistributables, .NET Framework, DirectX, etc.) into a specific game’s Proton prefix using `protontricks`. It’s the common solution for older Windows games that start but either crash, hang, or don’t launch fully—even after the GPU is detected properly.
+
+**When to use this:**
+- You’re running an older 32-bit (or sometimes 64-bit) Windows game through Proton.
+- The video card is detected (DXVK log shows your actual GPU, not llvmpipe).
+- The game either crashes on startup, hangs at a launcher, or fails to launch.
+- You’ve already resolved graphics/driver issues (see Script 1) and the problem persists.
+
+**What does this script do:**
+- Locates your Steam library (works with typical native paths, Flatpak Steam, as well as additional libraries).
+- Installs `protontricks` via Flatpak if it’s not already present. (The Flatpak version works reliably with current Steam; the apt package does not.)
+- Prompts you to search for and select your game from your installed library.
+- Matches your game against a known list of required components when possible (for popular titles).
+- If no match is found, suggests commonly-needed packages or allows manual entry.
+- Shows a summary and asks for confirmation.
+- Runs `protontricks` to install the necessary runtime libraries for that game’s Proton prefix.
+
+**Usage:**
 
 ```bash
-# Read it first.
+# Review the script first.
 less proton-game-fix.sh
 
 # Make it executable.
 chmod +x proton-game-fix.sh
 
-# Optional dry-run.
+# (Optional) See what it will do without any changes.
 ./proton-game-fix.sh --dry-run
 
-# Run for real.
+# Run the actual fix:
 ./proton-game-fix.sh
 ```
 
-The script is interactive. It will:
-
-1. Auto-detect where Steam is installed (handles `~/.steam/debian-installation`,
-   `~/.local/share/Steam`, the Flatpak version, and Steam libraries on
-   other drives).
-2. Install `protontricks` via Flatpak if it's not already present.
-   (It uses Flatpak rather than the apt version because the apt version
-   doesn't work with current Steam app info format.)
-3. Ask you to type part of the game's name. Searches your installed Steam
-   library and shows matches.
-4. Look up the game in its built-in list of known-good components for
-   popular older games (Total War series, Bethesda games, Half-Life 2,
-   GTA IV, BioShock, etc.). If the game isn't on the list, offers a
-   sensible generic set or lets you enter your own.
-5. Show you the plan and ask for confirmation.
-6. Run protontricks to install the components into the game's prefix.
-
-### What the script will NOT do
-
-- It won't touch any system files (no sudo).
-- It won't modify Proton itself, your driver, kernel modules, or anything
-  outside `~/.steam/` and `~/.local/share/flatpak/`.
-- It won't install components for a game without your confirmation.
-- It won't continue past a failed step.
-
-### Common pitfall
-
-Make sure the game is **not running** (not even showing as "running" in
-your Steam library) before running this script. Protontricks refuses to
-operate on a prefix that's actively in use.
-
-### What if the game still doesn't work?
-
-If components install successfully but the game still crashes, check
-**ProtonDB** (<https://protondb.com>) — search for your game and read recent
-reports. People often paste the exact protontricks command that worked for
-them. You can re-run this script and pick "enter your own components" to
-use what you found.
-
-Also worth trying: a different Proton version. **GE-Proton** (a community
-fork with extra fixes) often works for older games where the official
-Proton fails. Install it via [ProtonUp-Qt](https://flathub.org/apps/net.davidotek.pupgui2)
-and select it in the game's Properties → Compatibility tab.
+**What to know:**
+- The script is interactive; it won’t change anything without your confirmation.
+- No root/sudo required; only operates in your user’s home and Flatpak.
+- Make sure the game is not running (including background processes in Steam) before starting, or `protontricks` will refuse to modify the prefix.
+- If the libraries install successfully but the game still fails:  
+  - Check [ProtonDB](https://protondb.com) for specific advice on your game. Many users share working configurations and exact fixes.
+  - You can rerun this script and choose manual package entry if you find recommendations that differ.
+  - Sometimes switching to a community Proton build (like GE-Proton, via [ProtonUp-Qt](https://flathub.org/apps/net.davidotek.pupgui2)) is needed. Select it in the game's Properties → Compatibility tab if troubleshooting with extra Proton versions.
 
 ---
+
+## Troubleshooting & Extra Notes
+
+- **After using script 1 (nvidia-32bit-fix.sh):**  
+  If you still see performance issues or crashes, but your GPU is now detected, you’re most likely missing Windows runtime libs—use script 2.
+- **Removing changes:**  
+  Detailed removal steps are documented in the relevant section above. Only remove files placed by the script, not the base system libraries, to avoid breaking Steam or desktop compositing.
+- **Mesa package recovery (if needed):**  
+  If you accidentally remove core 32-bit Mesa libraries, reinstall with:
+  ```bash
+  sudo apt install --reinstall libgl1:i386 libegl1:i386 libgles2:i386 \
+                               libglx0:i386 libglvnd0:i386 libopengl0:i386
+  ```
+
+---
+
+## Feedback
+
+If you run into edge cases, have a system setup these scripts don’t cover, or find a more reliable way to solve these issues, contributions and suggestions are welcome. Open an issue or PR.
+
+---
+
+## References
+
+- [ProtonDB](https://protondb.com)
+- [Protontricks](https://github.com/Matoking/protontricks)
+- [GE-Proton (ProtonUp-Qt)](https://flathub.org/apps/net.davidotek.pupgui2)
+- [Valve’s Steam Play Documentation](https://github.com/ValveSoftware/Proton)
