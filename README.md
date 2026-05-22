@@ -102,7 +102,7 @@ The script will:
 
 The whole thing takes 1–2 minutes (most of it is the 400 MB download).
 
-### What the script will NOT do
+### What the script wont
 
 - It won't replace your installed driver.
 - It won't touch kernel modules or X config.
@@ -170,7 +170,7 @@ sudo ldconfig
 This puts you back exactly where you were before — 32-bit games will fall
 back to `llvmpipe` (software rendering), but the system itself is intact.
 
-> ⚠️ **Do NOT extend the `rm` list with files like `libGL.so*`, `libEGL.so*`,
+>  **Do NOT extend the `rm` list with files like `libGL.so*`, `libEGL.so*`,
 > `libGLX.so*`, `libGLESv*.so*` (without `_nvidia`), `libGLdispatch.so*`,
 > `libOpenGL.so*`, or `libOpenCL.so*`. Those are generic libraries provided
 > by Mesa/glvnd that the system needs for Steam itself, your desktop, and
